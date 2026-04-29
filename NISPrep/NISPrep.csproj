@@ -49,6 +49,7 @@
     <Compile Include="Form1.cs" />
     <Compile Include="Models\Question.cs" />
     <Compile Include="Models\ProgressEntry.cs" />
+    <Compile Include="Models\StudyMaterial.cs" />
     <Compile Include="Services\TestService.cs" />
     <Compile Include="Services\ProgressService.cs" />
   </ItemGroup>

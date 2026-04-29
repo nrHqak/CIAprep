@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.IO;
 using System.Linq;
+using System.Diagnostics;
 using System.Windows.Forms;
 using NISPrep.Models;
 using NISPrep.Services;
@@ -27,6 +29,7 @@ namespace NISPrep
         private Panel testPanel;
         private Panel resultPanel;
         private Panel progressPanel;
+        private Panel materialsPanel;
 
         private Label timerLabel;
         private Label questionLabel;
@@ -54,6 +57,10 @@ namespace NISPrep
         private DataGridView progressGrid;
         private DataGridView reviewGrid;
         private FlowLayoutPanel subjectProgressPanel;
+        private TextBox materialSearchBox;
+        private ComboBox materialSubjectFilter;
+        private ListView materialsListView;
+        private readonly List<StudyMaterial> materials = new List<StudyMaterial>();
 
         public Form1()
         {
@@ -71,6 +78,8 @@ namespace NISPrep
             BuildTestScreen();
             BuildResultScreen();
             BuildProgressScreen();
+            BuildMaterialsScreen();
+            LoadMaterials();
             ShowScreen(welcomePanel);
         }
 
@@ -125,8 +134,10 @@ namespace NISPrep
 
             var startButton = CreateButton("Начать подготовку", new Rectangle(36, 430, 280, 58), false);
             var progressButton = CreateButton("Открыть прогресс", new Rectangle(328, 430, 220, 58), true);
+            var materialButton = CreateButton("Материалы", new Rectangle(560, 430, 180, 58), true);
             startButton.Click += (s, e) => ShowScreen(subjectPanel);
             progressButton.Click += (s, e) => { RefreshProgressGrid(); ShowScreen(progressPanel); };
+            materialButton.Click += (s, e) => { ApplyMaterialFilters(false); ShowScreen(materialsPanel); };
 
             welcomePanel.Controls.Add(title);
             welcomePanel.Controls.Add(subtitle);
@@ -134,6 +145,7 @@ namespace NISPrep
             welcomePanel.Controls.Add(previewCard);
             welcomePanel.Controls.Add(startButton);
             welcomePanel.Controls.Add(progressButton);
+            welcomePanel.Controls.Add(materialButton);
             screenContainer.Controls.Add(welcomePanel);
         }
 
@@ -154,10 +166,13 @@ namespace NISPrep
 
             var openProgress = CreateButton("Открыть прогресс", new Rectangle(30, 440, 200, 48), true);
             var blitzButton = CreateButton("Быстрый тест", new Rectangle(250, 440, 200, 48), false);
+            var materialsButton = CreateButton("Материалы", new Rectangle(470, 440, 200, 48), true);
             openProgress.Click += (s, e) => { RefreshProgressGrid(); ShowScreen(progressPanel); };
             blitzButton.Click += (s, e) => StartBlitzMode();
+            materialsButton.Click += (s, e) => { ApplyMaterialFilters(false); ShowScreen(materialsPanel); };
             subjectPanel.Controls.Add(openProgress);
             subjectPanel.Controls.Add(blitzButton);
+            subjectPanel.Controls.Add(materialsButton);
 
             screenContainer.Controls.Add(subjectPanel);
         }
@@ -272,6 +287,46 @@ namespace NISPrep
             progressPanel.Controls.Add(back);
             progressPanel.Controls.Add(clear);
             screenContainer.Controls.Add(progressPanel);
+        }
+
+        private void BuildMaterialsScreen()
+        {
+            materialsPanel = CreateCardPanel();
+            materialsPanel.Controls.Add(CreateLabel("Материалы", 26, FontStyle.Bold, new Point(30, 24)));
+
+            materialSearchBox = new TextBox { Location = new Point(30, 90), Width = 360, Font = new Font("Segoe UI", 11f) };
+            materialSubjectFilter = new ComboBox { Location = new Point(410, 90), Width = 230, Font = new Font("Segoe UI", 11f), DropDownStyle = ComboBoxStyle.DropDownList };
+            materialSubjectFilter.Items.AddRange(new object[] { "Все", "Математика", "Физика", "Информатика", "Химия", "Биология", "Казахский язык", "Русский язык", "История Казахстана" });
+            materialSubjectFilter.SelectedIndex = 0;
+            var searchButton = CreateButton("Поиск", new Rectangle(660, 88, 120, 38), false);
+            var openButton = CreateButton("Открыть", new Rectangle(790, 88, 120, 38), true);
+            var back = CreateButton("Назад", new Rectangle(30, 540, 140, 44), true);
+
+            materialsListView = new ListView
+            {
+                Location = new Point(30, 140),
+                Size = new Size(880, 380),
+                View = View.Details,
+                FullRowSelect = true,
+                GridLines = true
+            };
+            materialsListView.Columns.Add("Название файла", 430);
+            materialsListView.Columns.Add("Предмет", 220);
+            materialsListView.Columns.Add("Путь", 220);
+
+            materialSearchBox.TextChanged += (s, e) => ApplyMaterialFilters(false);
+            materialSubjectFilter.SelectedIndexChanged += (s, e) => ApplyMaterialFilters(false);
+            searchButton.Click += (s, e) => ApplyMaterialFilters(true);
+            openButton.Click += (s, e) => OpenSelectedMaterial();
+            back.Click += (s, e) => ShowScreen(subjectPanel);
+
+            materialsPanel.Controls.Add(materialSearchBox);
+            materialsPanel.Controls.Add(materialSubjectFilter);
+            materialsPanel.Controls.Add(searchButton);
+            materialsPanel.Controls.Add(openButton);
+            materialsPanel.Controls.Add(materialsListView);
+            materialsPanel.Controls.Add(back);
+            screenContainer.Controls.Add(materialsPanel);
         }
 
         private void StartTest(string subject)
@@ -520,6 +575,7 @@ namespace NISPrep
             testPanel.Visible = false;
             resultPanel.Visible = false;
             progressPanel.Visible = false;
+            materialsPanel.Visible = false;
             screen.Visible = true;
         }
 
@@ -535,6 +591,85 @@ namespace NISPrep
 
             _progressService.ClearAll();
             RefreshProgressGrid();
+        }
+
+        private void LoadMaterials()
+        {
+            var basePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Materials");
+            materials.Clear();
+            materials.Add(new StudyMaterial { Title = "Алгебра_Базовый.pdf", Subject = "Математика", FilePath = Path.Combine(basePath, "Алгебра_Базовый.pdf") });
+            materials.Add(new StudyMaterial { Title = "Механика_Основы.pdf", Subject = "Физика", FilePath = Path.Combine(basePath, "Механика_Основы.pdf") });
+            materials.Add(new StudyMaterial { Title = "CSharp_Введение.pdf", Subject = "Информатика", FilePath = Path.Combine(basePath, "CSharp_Введение.pdf") });
+            materials.Add(new StudyMaterial { Title = "Органика_Кратко.pdf", Subject = "Химия", FilePath = Path.Combine(basePath, "Органика_Кратко.pdf") });
+            materials.Add(new StudyMaterial { Title = "Анатомия_Человека.pdf", Subject = "Биология", FilePath = Path.Combine(basePath, "Анатомия_Человека.pdf") });
+            materials.Add(new StudyMaterial { Title = "Казахский_Грамматика.pdf", Subject = "Казахский язык", FilePath = Path.Combine(basePath, "Казахский_Грамматика.pdf") });
+            materials.Add(new StudyMaterial { Title = "Русский_Орфография.pdf", Subject = "Русский язык", FilePath = Path.Combine(basePath, "Русский_Орфография.pdf") });
+            materials.Add(new StudyMaterial { Title = "История_Казахстана_Хронология.pdf", Subject = "История Казахстана", FilePath = Path.Combine(basePath, "История_Казахстана_Хронология.pdf") });
+            ApplyMaterialFilters(false);
+        }
+
+        private void ApplyMaterialFilters(bool strictValidation)
+        {
+            var search = materialSearchBox.Text.Trim();
+            if (strictValidation && string.IsNullOrWhiteSpace(search))
+            {
+                MessageBox.Show("Введите текст для поиска", "Поиск", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            if (strictValidation && search.Any(ch => !(char.IsLetterOrDigit(ch) || char.IsWhiteSpace(ch) || ch == '_' || ch == '-')))
+            {
+                MessageBox.Show("Некорректный ввод", "Поиск", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            var selectedSubject = materialSubjectFilter.SelectedItem?.ToString() ?? "Все";
+            var filtered = materials.Where(m =>
+                (selectedSubject == "Все" || m.Subject == selectedSubject) &&
+                (string.IsNullOrWhiteSpace(search) ||
+                 m.Title.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 m.Subject.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0))
+                .ToList();
+
+            materialsListView.Items.Clear();
+            foreach (var material in filtered)
+            {
+                var item = new ListViewItem(material.Title);
+                item.SubItems.Add(material.Subject);
+                item.SubItems.Add(material.FilePath);
+                item.Tag = material;
+                materialsListView.Items.Add(item);
+            }
+
+            if (strictValidation && filtered.Count == 0)
+            {
+                MessageBox.Show("Материалы не найдены", "Поиск", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            }
+        }
+
+        private void OpenSelectedMaterial()
+        {
+            if (materialsListView.SelectedItems.Count == 0)
+            {
+                MessageBox.Show("Выберите материал из списка", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            var material = materialsListView.SelectedItems[0].Tag as StudyMaterial;
+            try
+            {
+                if (material == null || !File.Exists(material.FilePath))
+                {
+                    MessageBox.Show("Ошибка открытия файла", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                Process.Start(new ProcessStartInfo(material.FilePath) { UseShellExecute = true });
+            }
+            catch
+            {
+                MessageBox.Show("Ошибка открытия файла", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
         }
     }
 }
