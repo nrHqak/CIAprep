@@ -23,6 +23,7 @@ namespace NISPrep
 
         private Panel screenContainer;
         private Panel subjectPanel;
+        private Panel welcomePanel;
         private Panel testPanel;
         private Panel resultPanel;
         private Panel progressPanel;
@@ -59,10 +60,11 @@ namespace NISPrep
 
             InitializeLayout();
             BuildSubjectScreen();
+            BuildWelcomeScreen();
             BuildTestScreen();
             BuildResultScreen();
             BuildProgressScreen();
-            ShowScreen(subjectPanel);
+            ShowScreen(welcomePanel);
         }
 
         private void InitializeLayout()
@@ -340,7 +342,7 @@ namespace NISPrep
             btn.Resize += (s, e) =>
             {
                 var path = new GraphicsPath();
-                int radius = 14;
+                int radius = 24;
                 path.AddArc(0, 0, radius, radius, 180, 90);
                 path.AddArc(btn.Width - radius, 0, radius, radius, 270, 90);
                 path.AddArc(btn.Width - radius, btn.Height - radius, radius, radius, 0, 90);
@@ -355,6 +357,7 @@ namespace NISPrep
         private void ShowScreen(Control screen)
         {
             subjectPanel.Visible = false;
+            welcomePanel.Visible = false;
             testPanel.Visible = false;
             resultPanel.Visible = false;
             progressPanel.Visible = false;
@@ -376,3 +379,16 @@ namespace NISPrep
         }
     }
 }
+        private void BuildWelcomeScreen()
+        {
+            welcomePanel = CreateCardPanel();
+            var title = CreateLabel("Добро пожаловать в NIS Prep", 28, FontStyle.Bold, new Point(30, 60));
+            var subtitle = CreateLabel("Тренируйтесь по предметам и отслеживайте прогресс", 14, FontStyle.Regular, new Point(34, 120));
+            var startButton = CreateButton("Начать подготовку", new Rectangle(34, 200, 280, 58), false);
+            startButton.Click += (s, e) => ShowScreen(subjectPanel);
+
+            welcomePanel.Controls.Add(title);
+            welcomePanel.Controls.Add(subtitle);
+            welcomePanel.Controls.Add(startButton);
+            screenContainer.Controls.Add(welcomePanel);
+        }
