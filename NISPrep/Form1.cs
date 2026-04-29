@@ -84,14 +84,49 @@ namespace NISPrep
         private void BuildWelcomeScreen()
         {
             welcomePanel = CreateCardPanel();
-            var title = CreateLabel("Добро пожаловать в NIS Prep", 28, FontStyle.Bold, new Point(30, 60));
-            var subtitle = CreateLabel("Тренируйтесь по предметам и отслеживайте прогресс", 14, FontStyle.Regular, new Point(34, 120));
-            var startButton = CreateButton("Начать подготовку", new Rectangle(34, 200, 280, 58), false);
+            var title = CreateLabel("NIS Prep", 44, FontStyle.Bold, new Point(32, 30));
+            var subtitle = CreateLabel("Подготовка к тестам по основным предметам", 15, FontStyle.Regular, new Point(36, 95));
+            var tip = CreateLabel("Выберите формат: начать подготовку или сразу открыть прогресс.", 11, FontStyle.Regular, new Point(36, 125));
+            tip.ForeColor = ColorTranslator.FromHtml("#6B7280");
+
+            var previewCard = new Panel
+            {
+                BackColor = Color.FromArgb(245, 250, 254),
+                Location = new Point(36, 175),
+                Size = new Size(860, 230),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            var previewTitle = CreateLabel("Доступные предметы", 18, FontStyle.Bold, new Point(20, 16));
+            previewCard.Controls.Add(previewTitle);
+            var previewSubjects = new[] { "Математика", "Физика", "Информатика", "Химия", "Биология", "Казахский язык", "Русский язык", "История Казахстана" };
+            for (int i = 0; i < previewSubjects.Length; i++)
+            {
+                var tag = new Label
+                {
+                    Text = previewSubjects[i],
+                    AutoSize = false,
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    Font = new Font("Segoe UI", 10f, FontStyle.Bold),
+                    ForeColor = darkText,
+                    BackColor = ColorTranslator.FromHtml("#E9EEF2"),
+                    Location = new Point(20 + (i % 4) * 205, 60 + (i / 4) * 70),
+                    Size = new Size(185, 44),
+                    BorderStyle = BorderStyle.FixedSingle
+                };
+                previewCard.Controls.Add(tag);
+            }
+
+            var startButton = CreateButton("Начать подготовку", new Rectangle(36, 430, 280, 58), false);
+            var progressButton = CreateButton("Открыть прогресс", new Rectangle(328, 430, 220, 58), true);
             startButton.Click += (s, e) => ShowScreen(subjectPanel);
+            progressButton.Click += (s, e) => { RefreshProgressGrid(); ShowScreen(progressPanel); };
 
             welcomePanel.Controls.Add(title);
             welcomePanel.Controls.Add(subtitle);
+            welcomePanel.Controls.Add(tip);
+            welcomePanel.Controls.Add(previewCard);
             welcomePanel.Controls.Add(startButton);
+            welcomePanel.Controls.Add(progressButton);
             screenContainer.Controls.Add(welcomePanel);
         }
 
@@ -161,6 +196,7 @@ namespace NISPrep
             resultPanel = CreateCardPanel();
             resultTitle = CreateLabel("Результат", 26, FontStyle.Bold, new Point(30, 24));
             resultStats = CreateLabel("", 14, FontStyle.Regular, new Point(30, 90));
+            resultStats.MaximumSize = new Size(860, 0);
             resultLast = CreateLabel("", 12, FontStyle.Regular, new Point(30, 180));
             resultBest = CreateLabel("", 12, FontStyle.Regular, new Point(30, 220));
             var retry = CreateButton("Пройти заново", new Rectangle(30, 320, 200, 48), false);
@@ -292,6 +328,8 @@ namespace NISPrep
             resultStats.Text = $"Предмет: {currentSubject}\nПравильных ответов: {correct}/{currentQuestions.Count}\nПроцент: {percentage}%\nУровень: {level}";
             var last = _progressService.GetLast(currentSubject);
             var best = _progressService.GetBest(currentSubject);
+            resultLast.Location = new Point(30, resultStats.Bottom + 12);
+            resultBest.Location = new Point(30, resultLast.Bottom + 10);
             resultLast.Text = last == null ? "Последний результат: нет данных" : $"Последний: {last.Percentage}% ({last.Date:g})";
             resultBest.Text = best == null ? "Лучший результат: нет данных" : $"Лучший: {best.Percentage}% ({best.Date:g})";
 
