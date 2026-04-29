@@ -81,6 +81,20 @@ namespace NISPrep
             }
         }
 
+        private void BuildWelcomeScreen()
+        {
+            welcomePanel = CreateCardPanel();
+            var title = CreateLabel("Добро пожаловать в NIS Prep", 28, FontStyle.Bold, new Point(30, 60));
+            var subtitle = CreateLabel("Тренируйтесь по предметам и отслеживайте прогресс", 14, FontStyle.Regular, new Point(34, 120));
+            var startButton = CreateButton("Начать подготовку", new Rectangle(34, 200, 280, 58), false);
+            startButton.Click += (s, e) => ShowScreen(subjectPanel);
+
+            welcomePanel.Controls.Add(title);
+            welcomePanel.Controls.Add(subtitle);
+            welcomePanel.Controls.Add(startButton);
+            screenContainer.Controls.Add(welcomePanel);
+        }
+
         private void BuildSubjectScreen()
         {
             subjectPanel = CreateCardPanel();
@@ -379,16 +393,3 @@ namespace NISPrep
         }
     }
 }
-        private void BuildWelcomeScreen()
-        {
-            welcomePanel = CreateCardPanel();
-            var title = CreateLabel("Добро пожаловать в NIS Prep", 28, FontStyle.Bold, new Point(30, 60));
-            var subtitle = CreateLabel("Тренируйтесь по предметам и отслеживайте прогресс", 14, FontStyle.Regular, new Point(34, 120));
-            var startButton = CreateButton("Начать подготовку", new Rectangle(34, 200, 280, 58), false);
-            startButton.Click += (s, e) => ShowScreen(subjectPanel);
-
-            welcomePanel.Controls.Add(title);
-            welcomePanel.Controls.Add(subtitle);
-            welcomePanel.Controls.Add(startButton);
-            screenContainer.Controls.Add(welcomePanel);
-        }
