@@ -34,6 +34,7 @@ namespace NISPrep
         private Button nextButton;
         private Button previousButton;
         private Button finishButton;
+        private Button pauseButton;
 
         private List<Question> currentQuestions;
         private readonly List<int> answers = new List<int>();
@@ -41,12 +42,18 @@ namespace NISPrep
         private string currentSubject;
         private int remainingSeconds;
         private readonly Timer testTimer;
+        private bool isPaused;
+        private bool isBlitzMode;
+        private int streak;
+        private Label streakLabel;
 
         private Label resultTitle;
         private Label resultStats;
         private Label resultLast;
         private Label resultBest;
         private DataGridView progressGrid;
+        private DataGridView reviewGrid;
+        private FlowLayoutPanel subjectProgressPanel;
 
         public Form1()
         {
@@ -146,8 +153,11 @@ namespace NISPrep
             }
 
             var openProgress = CreateButton("Открыть прогресс", new Rectangle(30, 440, 200, 48), true);
+            var blitzButton = CreateButton("Быстрый тест", new Rectangle(250, 440, 200, 48), false);
             openProgress.Click += (s, e) => { RefreshProgressGrid(); ShowScreen(progressPanel); };
+            blitzButton.Click += (s, e) => StartBlitzMode();
             subjectPanel.Controls.Add(openProgress);
+            subjectPanel.Controls.Add(blitzButton);
 
             screenContainer.Controls.Add(subjectPanel);
         }
@@ -158,8 +168,10 @@ namespace NISPrep
             timerLabel = CreateLabel("Осталось: 15:00", 14, FontStyle.Bold, new Point(30, 24));
             questionLabel = CreateLabel("", 18, FontStyle.Bold, new Point(30, 70));
             questionLabel.MaximumSize = new Size(860, 0);
+            streakLabel = CreateLabel("🔥 Серия: 0", 12, FontStyle.Bold, new Point(760, 24));
             testPanel.Controls.Add(timerLabel);
             testPanel.Controls.Add(questionLabel);
+            testPanel.Controls.Add(streakLabel);
 
             options = new RadioButton[4];
             for (int i = 0; i < options.Length; i++)
@@ -177,17 +189,20 @@ namespace NISPrep
             previousButton = CreateButton("Назад", new Rectangle(30, 390, 130, 46), true);
             nextButton = CreateButton("Далее", new Rectangle(170, 390, 130, 46), false);
             finishButton = CreateButton("Завершить тест", new Rectangle(310, 390, 190, 46), true);
+            pauseButton = CreateButton("Пауза", new Rectangle(700, 390, 130, 46), true);
             var toHome = CreateButton("К предметам", new Rectangle(510, 390, 170, 46), true);
 
             previousButton.Click += (s, e) => PreviousQuestion();
             nextButton.Click += (s, e) => NextQuestion();
             finishButton.Click += (s, e) => FinishTest();
+            pauseButton.Click += (s, e) => TogglePause();
             toHome.Click += (s, e) => { testTimer.Stop(); ShowScreen(subjectPanel); };
 
             testPanel.Controls.Add(previousButton);
             testPanel.Controls.Add(nextButton);
             testPanel.Controls.Add(finishButton);
             testPanel.Controls.Add(toHome);
+            testPanel.Controls.Add(pauseButton);
             screenContainer.Controls.Add(testPanel);
         }
 
@@ -210,6 +225,18 @@ namespace NISPrep
             resultPanel.Controls.Add(resultStats);
             resultPanel.Controls.Add(resultLast);
             resultPanel.Controls.Add(resultBest);
+            reviewGrid = new DataGridView
+            {
+                Location = new Point(30, 270),
+                Size = new Size(860, 180),
+                ReadOnly = true,
+                AutoGenerateColumns = true,
+                AllowUserToAddRows = false,
+                BackgroundColor = white,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            reviewGrid.RowPrePaint += ReviewGrid_RowPrePaint;
+            resultPanel.Controls.Add(reviewGrid);
             resultPanel.Controls.Add(retry);
             resultPanel.Controls.Add(home);
             resultPanel.Controls.Add(viewProgress);
@@ -231,8 +258,15 @@ namespace NISPrep
                 BorderStyle = BorderStyle.FixedSingle
             };
             progressPanel.Controls.Add(progressGrid);
-            var back = CreateButton("Назад", new Rectangle(30, 460, 140, 44), true);
-            var clear = CreateButton("Очистить прогресс", new Rectangle(180, 460, 200, 44), true);
+            subjectProgressPanel = new FlowLayoutPanel
+            {
+                Location = new Point(30, 450),
+                Size = new Size(860, 120),
+                AutoScroll = true
+            };
+            progressPanel.Controls.Add(subjectProgressPanel);
+            var back = CreateButton("Назад", new Rectangle(30, 580, 140, 44), true);
+            var clear = CreateButton("Очистить прогресс", new Rectangle(180, 580, 200, 44), true);
             back.Click += (s, e) => ShowScreen(subjectPanel);
             clear.Click += (s, e) => ClearProgress();
             progressPanel.Controls.Add(back);
@@ -250,6 +284,11 @@ namespace NISPrep
                 for (int i = 0; i < currentQuestions.Count; i++) answers.Add(-1);
                 currentIndex = 0;
                 remainingSeconds = 15 * 60;
+                streak = 0;
+                streakLabel.Text = "🔥 Серия: 0";
+                isBlitzMode = false;
+                isPaused = false;
+                pauseButton.Text = "Пауза";
                 testTimer.Start();
                 UpdateTimerLabel();
                 LoadQuestion();
@@ -276,7 +315,7 @@ namespace NISPrep
 
         private void NextQuestion()
         {
-            SaveCurrentAnswer();
+            SaveCurrentAnswerAndUpdateStreak();
             if (currentIndex < currentQuestions.Count - 1)
             {
                 currentIndex++;
@@ -286,7 +325,7 @@ namespace NISPrep
 
         private void PreviousQuestion()
         {
-            SaveCurrentAnswer();
+            SaveCurrentAnswerAndUpdateStreak();
             if (currentIndex > 0)
             {
                 currentIndex--;
@@ -294,15 +333,19 @@ namespace NISPrep
             }
         }
 
-        private void SaveCurrentAnswer()
+        private void SaveCurrentAnswerAndUpdateStreak()
         {
             var selected = Array.FindIndex(options, x => x.Checked);
             answers[currentIndex] = selected;
+            if (selected == -1) return;
+            if (selected == currentQuestions[currentIndex].CorrectOptionIndex) streak++;
+            else streak = 0;
+            streakLabel.Text = $"🔥 Серия: {streak}";
         }
 
         private void FinishTest()
         {
-            SaveCurrentAnswer();
+            SaveCurrentAnswerAndUpdateStreak();
             testTimer.Stop();
 
             int correct = 0;
@@ -332,6 +375,13 @@ namespace NISPrep
             resultBest.Location = new Point(30, resultLast.Bottom + 10);
             resultLast.Text = last == null ? "Последний результат: нет данных" : $"Последний: {last.Percentage}% ({last.Date:g})";
             resultBest.Text = best == null ? "Лучший результат: нет данных" : $"Лучший: {best.Percentage}% ({best.Date:g})";
+            reviewGrid.DataSource = currentQuestions.Select((q, idx) => new
+            {
+                Вопрос = q.Text,
+                Ваш_ответ = answers[idx] >= 0 ? q.Options[answers[idx]] : "Не отвечено",
+                Правильный = q.Options[q.CorrectOptionIndex],
+                Верно = answers[idx] == q.CorrectOptionIndex
+            }).ToList();
 
             ShowScreen(resultPanel);
         }
@@ -346,6 +396,7 @@ namespace NISPrep
                 Процент = x.Percentage,
                 Уровень = x.Level
             }).ToList();
+            RefreshSubjectProgress();
         }
 
         private void TestTimer_Tick(object sender, EventArgs e)
@@ -362,6 +413,62 @@ namespace NISPrep
         {
             var ts = TimeSpan.FromSeconds(Math.Max(0, remainingSeconds));
             timerLabel.Text = $"Осталось: {ts:mm\\:ss}";
+        }
+
+        private void StartBlitzMode()
+        {
+            currentSubject = "Blitz Mode";
+            currentQuestions = _testService.GetRandomQuestions(12);
+            answers.Clear();
+            for (int i = 0; i < currentQuestions.Count; i++) answers.Add(-1);
+            currentIndex = 0;
+            remainingSeconds = 60;
+            streak = 0;
+            streakLabel.Text = "🔥 Серия: 0";
+            isBlitzMode = true;
+            isPaused = false;
+            pauseButton.Text = "Пауза";
+            testTimer.Start();
+            UpdateTimerLabel();
+            LoadQuestion();
+            ShowScreen(testPanel);
+        }
+
+        private void TogglePause()
+        {
+            if (isPaused)
+            {
+                testTimer.Start();
+                pauseButton.Text = "Пауза";
+            }
+            else
+            {
+                testTimer.Stop();
+                pauseButton.Text = "Продолжить";
+            }
+            isPaused = !isPaused;
+        }
+
+        private void ReviewGrid_RowPrePaint(object sender, DataGridViewRowPrePaintEventArgs e)
+        {
+            var row = reviewGrid.Rows[e.RowIndex];
+            var isCorrect = row.Cells["Верно"].Value is bool value && value;
+            row.DefaultCellStyle.BackColor = isCorrect ? Color.FromArgb(220, 252, 231) : Color.FromArgb(254, 226, 226);
+        }
+
+        private void RefreshSubjectProgress()
+        {
+            subjectProgressPanel.Controls.Clear();
+            var subjectAverages = _progressService.GetSubjectAverages();
+            foreach (var item in subjectAverages.OrderBy(x => x.Key))
+            {
+                var row = new Panel { Width = 400, Height = 36, Margin = new Padding(8), BackColor = white };
+                var label = new Label { Text = $"{item.Key}: {item.Value}%", Width = 180, Location = new Point(0, 10), ForeColor = darkText };
+                var bar = new ProgressBar { Minimum = 0, Maximum = 100, Value = Math.Max(0, Math.Min(100, item.Value)), Width = 200, Height = 18, Location = new Point(190, 9) };
+                row.Controls.Add(label);
+                row.Controls.Add(bar);
+                subjectProgressPanel.Controls.Add(row);
+            }
         }
 
         private Panel CreateCardPanel()

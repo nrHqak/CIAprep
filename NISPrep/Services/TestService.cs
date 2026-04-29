@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using NISPrep.Models;
 
 namespace NISPrep.Services
@@ -26,6 +27,13 @@ namespace NISPrep.Services
             }
 
             throw new InvalidOperationException("Для выбранного предмета нет вопросов.");
+        }
+
+        public List<Question> GetRandomQuestions(int count)
+        {
+            var random = new Random();
+            var allQuestions = _subjectQuestions.SelectMany(x => x.Value).ToList();
+            return allQuestions.OrderBy(x => random.Next()).Take(count).ToList();
         }
 
         private Dictionary<string, List<Question>> BuildData()

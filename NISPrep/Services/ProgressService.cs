@@ -37,6 +37,13 @@ namespace NISPrep.Services
                 .FirstOrDefault();
         }
 
+        public Dictionary<string, int> GetSubjectAverages()
+        {
+            return _entries
+                .GroupBy(e => e.Subject)
+                .ToDictionary(g => g.Key, g => (int)Math.Round(g.Average(x => x.Percentage)));
+        }
+
         public void Add(ProgressEntry entry)
         {
             if (entry == null)
