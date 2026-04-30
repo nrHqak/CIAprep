@@ -62,10 +62,12 @@ namespace NISPrep
         private ComboBox materialSubjectFilter;
         private ListView materialsListView;
         private readonly List<StudyMaterial> materials = new List<StudyMaterial>();
+        private readonly Stack<Control> navigationHistory = new Stack<Control>();
+        private Control currentScreen;
 
         public Form1()
         {
-            Text = "NIS Prep";
+            Text = "Smart Quiz";
             MinimumSize = new Size(1000, 680);
             StartPosition = FormStartPosition.CenterScreen;
             DoubleBuffered = true;
@@ -81,7 +83,7 @@ namespace NISPrep
             BuildProgressScreen();
             BuildMaterialsScreen();
             LoadMaterials();
-            ShowScreen(welcomePanel);
+            ShowScreen(welcomePanel, false);
         }
 
         private void InitializeLayout()
@@ -101,7 +103,7 @@ namespace NISPrep
         private void BuildWelcomeScreen()
         {
             welcomePanel = CreateCardPanel();
-            var title = CreateLabel("NIS Prep", 44, FontStyle.Bold, new Point(32, 30));
+            var title = CreateLabel("Smart Quiz", 44, FontStyle.Bold, new Point(32, 30));
             var subtitle = CreateLabel("Подготовка к тестам по основным предметам", 15, FontStyle.Regular, new Point(36, 95));
             var tip = CreateLabel("Выберите формат: начать подготовку или сразу открыть прогресс.", 11, FontStyle.Regular, new Point(36, 125));
             tip.ForeColor = ColorTranslator.FromHtml("#6B7280");
@@ -176,6 +178,7 @@ namespace NISPrep
             subjectPanel.Controls.Add(materialsButton);
 
             screenContainer.Controls.Add(subjectPanel);
+            AddBackButton(subjectPanel);
         }
 
         private void BuildTestScreen()
@@ -220,6 +223,7 @@ namespace NISPrep
             testPanel.Controls.Add(toHome);
             testPanel.Controls.Add(pauseButton);
             screenContainer.Controls.Add(testPanel);
+            AddBackButton(testPanel);
         }
 
         private void BuildResultScreen()
@@ -257,6 +261,7 @@ namespace NISPrep
             resultPanel.Controls.Add(home);
             resultPanel.Controls.Add(viewProgress);
             screenContainer.Controls.Add(resultPanel);
+            AddBackButton(resultPanel);
         }
 
         private void BuildProgressScreen()
@@ -288,6 +293,7 @@ namespace NISPrep
             progressPanel.Controls.Add(back);
             progressPanel.Controls.Add(clear);
             screenContainer.Controls.Add(progressPanel);
+            AddBackButton(progressPanel);
         }
 
         private void BuildMaterialsScreen()
@@ -328,6 +334,7 @@ namespace NISPrep
             materialsPanel.Controls.Add(materialsListView);
             materialsPanel.Controls.Add(back);
             screenContainer.Controls.Add(materialsPanel);
+            AddBackButton(materialsPanel);
         }
 
         private void StartTest(string subject)
@@ -569,8 +576,13 @@ namespace NISPrep
             return btn;
         }
 
-        private void ShowScreen(Control screen)
+        private void ShowScreen(Control screen, bool addToHistory = true)
         {
+            if (addToHistory && currentScreen != null && currentScreen != screen)
+            {
+                navigationHistory.Push(currentScreen);
+            }
+
             subjectPanel.Visible = false;
             welcomePanel.Visible = false;
             testPanel.Visible = false;
@@ -578,6 +590,24 @@ namespace NISPrep
             progressPanel.Visible = false;
             materialsPanel.Visible = false;
             screen.Visible = true;
+            currentScreen = screen;
+        }
+
+        private void AddBackButton(Panel panel)
+        {
+            var back = CreateButton("← Назад", new Rectangle(760, 18, 150, 36), true);
+            back.Click += (s, e) =>
+            {
+                if (navigationHistory.Count > 0)
+                {
+                    ShowScreen(navigationHistory.Pop(), false);
+                }
+                else
+                {
+                    ShowScreen(welcomePanel, false);
+                }
+            };
+            panel.Controls.Add(back);
         }
 
         private void ClearProgress()
