@@ -223,7 +223,6 @@ namespace NISPrep
             testPanel.Controls.Add(toHome);
             testPanel.Controls.Add(pauseButton);
             screenContainer.Controls.Add(testPanel);
-            AddBackButton(testPanel);
         }
 
         private void BuildResultScreen()
