@@ -5,6 +5,7 @@ using System.Drawing.Drawing2D;
 using System.IO;
 using System.Linq;
 using System.Diagnostics;
+using System.Text;
 using System.Windows.Forms;
 using NISPrep.Models;
 using NISPrep.Services;
@@ -658,18 +659,83 @@ namespace NISPrep
             var material = materialsListView.SelectedItems[0].Tag as StudyMaterial;
             try
             {
-                if (material == null || !File.Exists(material.FilePath))
+                if (material == null)
                 {
                     MessageBox.Show("Ошибка открытия файла", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     return;
                 }
 
-                Process.Start(new ProcessStartInfo(material.FilePath) { UseShellExecute = true });
+                var fullPath = ResolveMaterialPath(material.FilePath);
+                if (string.IsNullOrWhiteSpace(fullPath))
+                {
+                    MessageBox.Show("Ошибка открытия файла", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    return;
+                }
+
+                if (!File.Exists(fullPath))
+                {
+                    CreatePlaceholderPdf(fullPath, material.Title);
+                }
+
+                Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
             }
             catch
             {
                 MessageBox.Show("Ошибка открытия файла", "Материалы", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
+        }
+
+        private string ResolveMaterialPath(string originalPath)
+        {
+            if (string.IsNullOrWhiteSpace(originalPath))
+                return null;
+
+            if (Path.IsPathRooted(originalPath) && File.Exists(originalPath))
+                return originalPath;
+
+            var fileName = Path.GetFileName(originalPath);
+            var candidates = new[]
+            {
+                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Materials", fileName),
+                Path.Combine(Application.StartupPath, "Materials", fileName),
+                Path.Combine(Application.StartupPath, "..", "..", "Materials", fileName),
+                Path.Combine(Application.StartupPath, "..", "..", "..", "NISPrep", "Materials", fileName)
+            };
+
+            return candidates.Select(Path.GetFullPath).FirstOrDefault(File.Exists) ?? Path.GetFullPath(candidates[0]);
+        }
+
+        private void CreatePlaceholderPdf(string path, string title)
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(path) ?? AppDomain.CurrentDomain.BaseDirectory);
+            var text = (title ?? "StudyMaterial").Replace("(", "").Replace(")", "");
+            var content = Encoding.ASCII.GetBytes($"BT /F1 18 Tf 50 750 Td ({text} - placeholder) Tj ET");
+            var objects = new List<byte[]>
+            {
+                Encoding.ASCII.GetBytes("1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj\n"),
+                Encoding.ASCII.GetBytes("2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj\n"),
+                Encoding.ASCII.GetBytes("3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>endobj\n"),
+                Encoding.ASCII.GetBytes("4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj\n"),
+                Encoding.ASCII.GetBytes($"5 0 obj<< /Length {content.Length} >>stream\n") .Concat(content).Concat(Encoding.ASCII.GetBytes("\nendstream endobj\n")).ToArray()
+            };
+
+            var output = new List<byte>(Encoding.ASCII.GetBytes("%PDF-1.4\n"));
+            var offsets = new List<int> { 0 };
+            foreach (var obj in objects)
+            {
+                offsets.Add(output.Count);
+                output.AddRange(obj);
+            }
+
+            var xrefPos = output.Count;
+            output.AddRange(Encoding.ASCII.GetBytes($"xref\n0 {objects.Count + 1}\n"));
+            output.AddRange(Encoding.ASCII.GetBytes("0000000000 65535 f \n"));
+            foreach (var offset in offsets.Skip(1))
+            {
+                output.AddRange(Encoding.ASCII.GetBytes($"{offset:0000000000} 00000 n \n"));
+            }
+            output.AddRange(Encoding.ASCII.GetBytes($"trailer<< /Size {objects.Count + 1} /Root 1 0 R >>\nstartxref\n{xrefPos}\n%%EOF\n"));
+            File.WriteAllBytes(path, output.ToArray());
         }
     }
 }
